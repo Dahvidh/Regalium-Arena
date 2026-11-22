@@ -146,7 +146,7 @@ export default function App() {
   }
 
   return <main className="shell">
-    <header className="topbar"><a className="brand" href="#"><span className="brandmark">R</span><span>REGALIUM <b>ARENA</b></span></a><div className="topright"><span className="network"><i/> POLYGON AMOY TESTNET</span><button className="wallet" onClick={connect} disabled={busy}>{wallet?wallet.address.slice(0,6)+'…'+wallet.address.slice(-4):'CONNECT WALLET'}</button></div></header>
+    <header className="topbar"><a className="brand" href="#"><span className="brandmark">R</span><span>REGALIUM <b>ARENA</b></span></a><div className="topright"><span className="network"><i/> POLYGON AMOY TESTNET</span><button className="wallet" onClick={connect} disabled={busy}>{wallet?wallet.address.slice(0,6)+'…'+wallet.address.slice(-4):'CONNECT WALLET'}</button>{!wallet&&isMobile&&<a className="wallet" href={metaMaskDeepLink}>OPEN IN METAMASK ↗</a>}</div></header>
     <section className="intro"><div><div className="eyebrow"><i/> THE PROVING GROUNDS</div><h1>ENTER THE <em>ARENA.</em></h1><p>Survive the mission. Earn your place. Test the RGLM GameStore.</p></div><div className="season"><span>SEASON</span><strong>001</strong><small>AMOY PROTOCOL</small></div></section>
     <section className="layout">
       <div className="game" ref={panel}>
