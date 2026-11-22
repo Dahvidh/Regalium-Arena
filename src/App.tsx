@@ -99,7 +99,7 @@ export default function App() {
   useEffect(()=>{
     const key=(e:KeyboardEvent)=>{
       if(!active)return
-      const step=e.shiftKey?.8:.45
+      const step = e.shiftKey ? 0.8 : 0.45
       setPosition(([x,y,z])=>[THREE.MathUtils.clamp(x+(['a','ArrowLeft'].includes(e.key.toLowerCase())?-step:['d','ArrowRight'].includes(e.key.toLowerCase())?step:0),-9,9),y,THREE.MathUtils.clamp(z+(['w','ArrowUp'].includes(e.key.toLowerCase())?-step:['s','ArrowDown'].includes(e.key.toLowerCase())?step:0),-9,9)])
       if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault()
     }
