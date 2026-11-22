@@ -41,7 +41,7 @@ function Arena() {
       <mesh position={[0,.82,0]} castShadow receiveShadow><cylinderGeometry args={[.25,.38,1.65,8]}/><meshStandardMaterial color="#4a365e" metalness={.8} roughness={.28}/></mesh>
       <mesh position={[0,1.68,0]} castShadow><cylinderGeometry args={[.42,.3,.16,8]}/><meshStandardMaterial color="#bd914e" metalness={.85} roughness={.2} emissive="#654018" emissiveIntensity={.5}/></mesh>
       <mesh position={[0,2.1,0]}><sphereGeometry args={[.12,12,12]}/><meshBasicMaterial color="#d7b56e"/></mesh>
-      <pointLight position={[0,2,0]} color="#a56aff" intensity={.5} distance={3}/>
+      {i%6===0&&<pointLight position={[0,2,0]} color="#a56aff" intensity={.5} distance={3}/>}
     </group>)}
     {Array.from({length:8},(_,i)=>{
       const a=i*Math.PI/4;
@@ -102,7 +102,7 @@ function Drone({bot}:{bot:Bot}) {
       <mesh position={[.78,.02,0]} rotation={[0,0,Math.PI/2]}><boxGeometry args={[.04,.32,.04]}/><meshBasicMaterial color="#e7c16e"/></mesh>
     </group>)}
     <mesh position={[0,.34,0]}><coneGeometry args={[.16,.28,6]}/><meshStandardMaterial color="#d4aa65" metalness={.9}/></mesh>
-    <pointLight color="#ff286d" intensity={1.8} distance={3.5}/>
+    {bot.id%3===0&&<pointLight color="#ff286d" intensity={1.2} distance={3}/>}
   </group>
 }
 function CameraRig({position}:{position:[number,number,number]}) {
