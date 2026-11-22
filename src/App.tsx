@@ -7,6 +7,9 @@ import { connectWallet, fromUnits, GAMESTORE_ADDRESS, storeContract, toUnits } f
 
 type Bot = { id: number; x: number; z: number }
 type Link = { provider: any; signer: any; address: string }
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+const metaMaskDeepLink = 'https://metamask.app.link/dapp/' + window.location.host + window.location.pathname
+const waveSize = (stage:number) => 5 + (stage - 1) * 2
 
 function Arena() {
   return <group>
@@ -35,23 +38,29 @@ function Drone({bot}:{bot:Bot}) {
     <pointLight color="#f43f78" intensity={1.1} distance={2.5}/>
   </group>
 }
+function CameraRig({position}:{position:[number,number,number]}) {
+  useFrame(({camera})=>{const target=new THREE.Vector3(position[0]*.22,10.5,position[2]+12);camera.position.lerp(target,.035);camera.lookAt(position[0]*.18,0,position[2]-1)})
+  return null
+}
 function Scene({position,bots}:{position:[number,number,number];bots:Bot[]}) {
-  return <Canvas camera={{position:[0,11,15],fov:48}} dpr={[1,1.7]}>
+  return <Canvas shadows camera={{position:[0,11,15],fov:48}} dpr={[1,1.7]}>
     <color attach="background" args={['#090713']}/><fog attach="fog" args={['#090713',15,34]}/>
     <ambientLight intensity={.65}/><directionalLight position={[5,10,4]} intensity={2} castShadow/>
     <Stars radius={75} depth={35} count={1400} factor={3} saturation={.4} fade speed={.4}/>
-    <Arena/><Operative position={position}/>{bots.map(b=><Drone key={b.id} bot={b}/>)}
+    <CameraRig position={position}/><Arena/><Operative position={position}/>{bots.map(b=><Drone key={b.id} bot={b}/>)}
     <Float speed={1.2} floatIntensity={.25}><Text position={[0,4.4,-7]} fontSize={.65} color="#d9b56b" letterSpacing={.18}>REGALIUM ARENA</Text></Float>
   </Canvas>
 }
-const wave=():Bot[]=>[{id:1,x:-4,z:-3},{id:2,x:4,z:-4},{id:3,x:0,z:-7},{id:4,x:-6,z:2},{id:5,x:6,z:1}]
+const wave=(stage=1):Bot[]=>Array.from({length:waveSize(stage)},(_,i)=>{const angle=(i/waveSize(stage))*Math.PI*2;const radius=stage===1?5:6+stage*.5;return{id:i+1,x:Math.cos(angle)*radius,z:Math.sin(angle)*radius-1}})
 
 export default function App() {
   const [wallet,setWallet]=useState<Link|null>(null)
   const [owed,setOwed]=useState('—')
   const [owner,setOwner]=useState('')
   const [amount,setAmount]=useState('1')
-  const [bots,setBots]=useState<Bot[]>(wave)
+  const [stage,setStage]=useState(1)
+  const [completed,setCompleted]=useState(false)
+  const [bots,setBots]=useState<Bot[]>(()=>wave(1))
   const [position,setPosition]=useState<[number,number,number]>([0,0,5])
   const [score,setScore]=useState(0)
   const [health,setHealth]=useState(100)
@@ -111,15 +120,15 @@ export default function App() {
     const target=[...bots].sort((a,b)=>Math.hypot(a.x-position[0],a.z-position[2])-Math.hypot(b.x-position[0],b.z-position[2]))[0]
     if(Math.hypot(target.x-position[0],target.z-position[2])>12)return
     setBots(old=>old.filter(b=>b.id!==target.id));setScore(s=>s+100)
-    if(bots.length===1){setActive(false);setFinished(true);setNotice('Arena cleared. Mission complete!')}
+    if(bots.length===1){if(stage<3){const next=stage+1;setStage(next);setNotice('Wave '+stage+' cleared. Wave '+next+' incoming — stay alert.');window.setTimeout(()=>setBots(wave(next)),1200)}else{setActive(false);setFinished(true);setCompleted(true);setNotice('All three waves cleared. Mission complete!')}}
   }
 
   const start=()=>{
-    setBots(wave());setPosition([0,0,5]);setScore(0);setHealth(100);setTime(90);setFinished(false);setActive(true)
+    setStage(1);setCompleted(false);setBots(wave(1));setPosition([0,0,5]);setScore(0);setHealth(100);setTime(90);setFinished(false);setActive(true)
     gsap.fromTo(panel.current,{opacity:.7,scale:.985},{opacity:1,scale:1,duration:.5,ease:'power3.out'})
     setNotice('Mission live. Eliminate all five hostile drones.')
   }
-  const reset=()=>{setActive(false);setFinished(false);setBots(wave());setScore(0);setHealth(100);setTime(90)}
+  const reset=()=>{setActive(false);setFinished(false);setCompleted(false);setStage(1);setBots(wave(1));setScore(0);setHealth(100);setTime(90)}
   const withdraw=async()=>{
     if(!wallet)return
     setBusy(true)
@@ -129,7 +138,7 @@ export default function App() {
   }
   const assign=async()=>{
     if(!wallet||owner!==wallet.address.toLowerCase())return
-    if(!finished||score===0){setNotice('Clear the mission before assigning a test reward.');return}
+    if(!completed||score===0){setNotice('Clear all three waves before assigning a test reward.');return}
     setBusy(true)
     try{const tx=await storeContract(wallet.signer).rewardUser(wallet.address,toUnits(amount));setNotice('Reward assignment submitted. Waiting for confirmation…');await tx.wait();await refresh();setNotice('Reward assigned. You can now test the player withdrawal flow.')}
     catch(e:any){setNotice(e.shortMessage||e.reason||e.message||'Reward assignment failed. Check caps, funding and owner permissions.')}
@@ -141,14 +150,14 @@ export default function App() {
     <section className="intro"><div><div className="eyebrow"><i/> THE PROVING GROUNDS</div><h1>ENTER THE <em>ARENA.</em></h1><p>Survive the mission. Earn your place. Test the RGLM GameStore.</p></div><div className="season"><span>SEASON</span><strong>001</strong><small>AMOY PROTOCOL</small></div></section>
     <section className="layout">
       <div className="game" ref={panel}>
-        <div className="hud"><div><small>MISSION 01</small><b>{active?'HOSTILE CONTACT':finished?'MISSION REPORT':'THE FIRST WAVE'}</b></div><div className="metrics"><span>TIME <b>00:{String(time).padStart(2,'0')}</b></span><span>ELIMS <b>{score/100}/5</b></span><span>VITALS <b className={health<35?'danger':''}>{health}%</b></span></div></div>
-        <div className="viewport" onClick={fire}><Scene position={position} bots={bots}/><div className="crosshair">+</div>{!active&&<div className="overlay"><small>{finished?'MISSION CONCLUDED':'READY WHEN YOU ARE'}</small><h2>{finished?(score>0&&health>0?'ARENA CLEARED':'TRY AGAIN'):'THE ARENA AWAITS.'}</h2><p>{finished?'Combat score: '+score.toLocaleString()+' points':'Five hostile drones. Ninety seconds. No second chances.'}</p><button className="primary" onClick={e=>{e.stopPropagation();start()}}>{finished?'RUN IT BACK':'DEPLOY TO ARENA'} ↗</button></div>}</div>
+        <div className="hud"><div><small>MISSION 01</small><b>{active?'HOSTILE CONTACT':finished?'MISSION REPORT':'THE FIRST WAVE'}</b></div><div className="metrics"><span>TIME <b>00:{String(time).padStart(2,'0')}</b></span><span>WAVE <b>{stage}/3</b> · ELIMS <b>{score/100}/{waveSize(stage)}</b></span><span>VITALS <b className={health<35?'danger':''}>{health}%</b></span></div></div>
+        <div className="viewport" onClick={fire}><Scene position={position} bots={bots}/><div className="crosshair">+</div>{!active&&<div className="overlay"><small>{finished?'MISSION CONCLUDED':'READY WHEN YOU ARE'}</small><h2>{finished?(completed?'ARENA CLEARED':'TRY AGAIN'):'THE ARENA AWAITS.'}</h2><p>{finished?'Combat score: '+score.toLocaleString()+' points':'Wave '+stage+' · '+waveSize(stage)+' hostile drones. Clear all three waves before time runs out.'}</p><button className="primary" onClick={e=>{e.stopPropagation();start()}}>{finished?'RUN IT BACK':'DEPLOY TO ARENA'} ↗</button></div>}</div>
         <div className="gamefoot"><span><i className={active?'live':''}/>{active?'LIVE COMBAT':'SIMULATION STANDBY'}</span><span>W A S D / ARROWS TO MOVE · CLICK TO FIRE</span><button onClick={reset}>RESET SIMULATION ↻</button></div>
       </div>
       <aside>
         <section className="card profile"><div className="cardhead"><span>OPERATIVE PROFILE</span><b>◈</b></div><div className="avatar">R</div><h3>{wallet?wallet.address.slice(0,6)+'…'+wallet.address.slice(-4):'UNIDENTIFIED'}</h3><p>{wallet?'WALLET LINK ESTABLISHED':'CONNECT WALLET TO IDENTIFY'}</p><div className="label">AVAILABLE RGLM REWARDS</div><div className="balance"><strong>{owed}</strong><span>RGLM</span></div><button className="outline" onClick={withdraw} disabled={!wallet||busy||owed==='—'||Number(owed)<=0}>WITHDRAW REWARDS ↗</button><small>Rewards remain in GameStore until withdrawn.</small></section>
-        <section className="card intel"><div className="cardhead"><span>MISSION INTEL</span><b className="tag">REWARD TEST</b></div><div className="line"><span>OBJECTIVE</span><b>Eliminate 5 drones</b></div><div className="line"><span>TIME LIMIT</span><b>01:30</b></div><div className="line"><span>COMBAT SCORE</span><b>{score.toLocaleString()} PTS</b></div><div className="line"><span>MISSION STATUS</span><b className={finished&&score>0?'success':''}>{finished?(score>0?'COMPLETE':'FAILED'):active?'IN PROGRESS':'NOT STARTED'}</b></div></section>
-        {wallet&&owner===wallet.address.toLowerCase()&&<section className="card owner"><div className="cardhead"><span>CONTRACT OWNER</span><b className="tag">OWNER</b></div><label>TEST REWARD AMOUNT (RGLM)</label><input value={amount} onChange={e=>setAmount(e.target.value)} inputMode="decimal"/><button className="primary full" disabled={busy||!finished||score===0} onClick={assign}>ASSIGN MISSION REWARD ↗</button><small>Calls rewardUser() from your connected owner wallet. The contract enforces ownership, daily caps and available funding.</small></section>}
+        <section className="card intel"><div className="cardhead"><span>MISSION INTEL</span><b className="tag">REWARD TEST</b></div><div className="line"><span>OBJECTIVE</span><b>Clear all 3 waves</b></div><div className="line"><span>TIME LIMIT</span><b>01:30</b></div><div className="line"><span>COMBAT SCORE</span><b>{score.toLocaleString()} PTS</b></div><div className="line"><span>MISSION STATUS</span><b className={finished&&score>0?'success':''}>{finished?(completed?'COMPLETE':'FAILED'):active?'WAVE '+stage+'/3':'NOT STARTED'}</b></div></section>
+        {wallet&&owner===wallet.address.toLowerCase()&&<section className="card owner"><div className="cardhead"><span>CONTRACT OWNER</span><b className="tag">OWNER</b></div><label>TEST REWARD AMOUNT (RGLM)</label><input value={amount} onChange={e=>setAmount(e.target.value)} inputMode="decimal"/><button className="primary full" disabled={busy||!completed||score===0} onClick={assign}>ASSIGN MISSION REWARD ↗</button><small>Calls rewardUser() from your connected owner wallet. The contract enforces ownership, daily caps and available funding.</small></section>}
       </aside>
     </section>
     <footer><span>✦ &nbsp; BUILT FOR THE <b>REGALIUM</b> ECOSYSTEM</span><span>GAMESTORE INTEGRATION · POLYGON AMOY · BUILD 0.1.0</span></footer>
